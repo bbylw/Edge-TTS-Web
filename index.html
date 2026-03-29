@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>语音合成 - TTS</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=Orbitron:wght@400;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        :root {
+            --bg-primary: #0d0d15;
+            --bg-secondary: #1a1a2e;
+            --bg-card: #16213e;
+            --bg-input: #0f1623;
+            --accent-primary: #00d4ff;
+            --accent-secondary: #7b2cbf;
+            --accent-gradient: linear-gradient(135deg, #00d4ff 0%, #7b2cbf 100%);
+            --text-primary: #ffffff;
+            --text-secondary: #a0aec0;
+            --text-muted: #64748b;
+            --border-color: rgba(0, 212, 255, 0.15);
+            --shadow-glow: 0 0 40px rgba(0, 212, 255, 0.1);
+            --shadow-card: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+        
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            background: var(--bg-primary);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            position: relative;
+            overflow-x: hidden;
+        }
+        
+        /* 动态背景网格 */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(rgba(0, 212, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 212, 255, 0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            pointer-events: none;
+            z-index: 0;
+        }
+        
+        /* 浮动光晕 */
+        body::after {
+            content: '';
+            position: fixed;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(ellipse at 30% 20%, rgba(0, 212, 255, 0.08) 0%, transparent 50%),
+                        radial-gradient(ellipse at 70% 80%, rgba(123, 44, 191, 0.08) 0%, transparent 50%);
+            animation: float 20s ease-in-out infinite;
+            pointer-events: none;
+            z-index: 0;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) rotate(0deg); }
+            33% { transform: translate(2%, 2%) rotate(1deg); }
+            66% { transform: translate(-1%, 1%) rotate(-1deg); }
+        }
+        
+        .container {
+            width: 100%;
+            max-width: 640px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .card {
+            background: var(--bg-card);
+            border-radius: 24px;
+            padding: 40px;
+            box-shadow: var(--shadow-card), var(--shadow-glow);
+            border: 1px solid var(--border-color);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--accent-primary), transparent);
+            opacity: 0.5;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        
+        .header h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
+            letter-spacing: 2px;
+        }
+        
+        .header p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            font-weight: 300;
+        }
+        
+        .form-group {
+            margin-bottom: 24px;
+        }
+        
+        .form-label {
+            display: block;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            font-weight: 500;
+            margin-bottom: 10px;
+            letter-spacing: 0.5px;
+        }
+        
+        .form-label span {
+            color: var(--accent-primary);
+        }
+        
+        textarea {
+            width: 100%;
+            min-height: 140px;
+            padding: 16px;
+            background: var(--bg-input);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            color: var(--text-primary);
+            font-size: 1rem;
+            font-family: inherit;
+            resize: vertical;
+            transition: all 0.3s ease;
+        }
+        
+        textarea::placeholder {
+            color: var(--text-muted);
+        }
+        
+        textarea:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.15);
+        }
+        
+        select {
+            width: 100%;
+            padding: 14px 16px;
+            background: var(--bg-input);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2300d4ff' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 16px center;
+        }
+        
+        select:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.15);
+        }
+        
+        select:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        optgroup {
+            background: var(--bg-card);
+            color: var(--accent-primary);
+            font-weight: 500;
+        }
+        
+        option {
+            background: var(--bg-input);
+            color: var(--text-primary);
+            padding: 8px;
+        }
+        
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        
+        input[type="range"] {
+            flex: 1;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 6px;
+            background: var(--bg-input);
+            border-radius: 3px;
+            outline: none;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: var(--accent-gradient);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 15px rgba(0, 212, 255, 0.5);
+            transition: transform 0.2s ease;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.15);
+        }
+        
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: var(--accent-gradient);
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 0 15px rgba(0, 212, 255, 0.5);
+        }
+        
+        .slider-value {
+            min-width: 60px;
+            text-align: center;
+            padding: 8px 12px;
+            background: var(--bg-input);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--accent-primary);
+            font-family: 'Orbitron', monospace;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+        
+        .generate-btn {
+            width: 100%;
+            padding: 16px 32px;
+            background: var(--accent-gradient);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-size: 1.1rem;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            letter-spacing: 1px;
+        }
+        
+        .generate-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s ease;
+        }
+        
+        .generate-btn:hover:not(:disabled)::before {
+            left: 100%;
+        }
+        
+        .generate-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(0, 212, 255, 0.3);
+        }
+        
+        .generate-btn:active:not(:disabled) {
+            transform: translateY(0);
+        }
+        
+        .generate-btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+        
+        .generate-btn.loading {
+            background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
+        }
+        
+        .result-section {
+            margin-top: 32px;
+            padding-top: 32px;
+            border-top: 1px solid var(--border-color);
+            display: none;
+        }
+        
+        .result-section.show {
+            display: block;
+            animation: fadeIn 0.5s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .audio-container {
+            background: var(--bg-input);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 16px;
+            border: 1px solid var(--border-color);
+        }
+        
+        audio {
+            width: 100%;
+            height: 44px;
+            border-radius: 8px;
+        }
+        
+        audio::-webkit-media-controls-panel {
+            background: var(--bg-input);
+        }
+        
+        audio::-webkit-media-controls-current-time-display,
+        audio::-webkit-media-controls-time-remaining-display {
+            color: var(--text-primary);
+            font-family: 'Orbitron', monospace;
+        }
+        
+        .download-btn {
+            width: 100%;
+            padding: 14px 24px;
+            background: transparent;
+            border: 2px solid var(--accent-primary);
+            border-radius: 12px;
+            color: var(--accent-primary);
+            font-size: 1rem;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        .download-btn:hover {
+            background: var(--accent-primary);
+            color: var(--bg-primary);
+            box-shadow: 0 0 25px rgba(0, 212, 255, 0.4);
+        }
+        
+        .download-btn svg {
+            width: 20px;
+            height: 20px;
+        }
+        
+        .error-message {
+            margin-top: 16px;
+            padding: 12px 16px;
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: 8px;
+            color: #ef4444;
+            font-size: 0.9rem;
+            display: none;
+        }
+        
+        .error-message.show {
+            display: block;
+            animation: shake 0.5s ease;
+        }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 480px) {
+            .card {
+                padding: 24px;
+                border-radius: 20px;
+            }
+            
+            .header h1 {
+                font-size: 1.8rem;
+            }
+            
+            textarea {
+                min-height: 120px;
+            }
+            
+            .slider-container {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 12px;
+            }
+            
+            .slider-value {
+                align-self: flex-end;
+            }
+        }
+        
+        /* 加载动画 */
+        .spinner {
+            display: inline-block;
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="header">
+                <h1>TTS</h1>
+                <p>文本转语音合成服务</p>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label"><span>✦</span> 文本内容</label>
+                <textarea id="textInput" placeholder="请输入要转换的文本..."></textarea>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label"><span>✦</span> 选择语音</label>
+                <select id="voiceSelect" disabled>
+                    <option value="">正在加载语音列表...</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label"><span>✦</span> 语速调节</label>
+                <div class="slider-container">
+                    <input type="range" id="rateSlider" min="-50" max="50" value="0">
+                    <span class="slider-value" id="rateValue">+0%</span>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label"><span>✦</span> 音量调节</label>
+                <div class="slider-container">
+                    <input type="range" id="volumeSlider" min="-50" max="50" value="0">
+                    <span class="slider-value" id="volumeValue">+0%</span>
+                </div>
+            </div>
+            
+            <button class="generate-btn" id="generateBtn">
+                生成语音
+            </button>
+            
+            <div class="error-message" id="errorMessage"></div>
+            
+            <div class="result-section" id="resultSection">
+                <div class="audio-container">
+                    <audio id="audioPlayer" controls></audio>
+                </div>
+                <button class="download-btn" id="downloadBtn">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    下载 MP3
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DOM 元素
+        const textInput = document.getElementById('textInput');
+        const voiceSelect = document.getElementById('voiceSelect');
+        const rateSlider = document.getElementById('rateSlider');
+        const rateValue = document.getElementById('rateValue');
+        const volumeSlider = document.getElementById('volumeSlider');
+        const volumeValue = document.getElementById('volumeValue');
+        const generateBtn = document.getElementById('generateBtn');
+        const resultSection = document.getElementById('resultSection');
+        const audioPlayer = document.getElementById('audioPlayer');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const errorMessage = document.getElementById('errorMessage');
+        
+        let audioBlob = null;
+        
+        // 格式化百分比值
+        function formatPercent(value) {
+            const num = parseInt(value);
+            return num >= 0 ? `+${num}%` : `${num}%`;
+        }
+        
+        // 滑块事件监听
+        rateSlider.addEventListener('input', (e) => {
+            rateValue.textContent = formatPercent(e.target.value);
+        });
+        
+        volumeSlider.addEventListener('input', (e) => {
+            volumeValue.textContent = formatPercent(e.target.value);
+        });
+        
+        // Locale 显示名称映射
+        const LOCALE_DISPLAY_NAMES = {
+            'zh-CN': '中文普通话',
+            'zh-CN-liaoning': '中文方言-辽宁',
+            'zh-CN-shaanxi': '中文方言-陕西',
+            'en-US': '英语(美国)'
+        };
+
+        // 加载语音列表
+        async function loadVoices() {
+            try {
+                const response = await fetch('/api/voices');
+                if (!response.ok) throw new Error('加载语音列表失败');
+                
+                const voices = await response.json();
+                
+                // 按语言分组
+                const voicesByLocale = {};
+                voices.forEach(voice => {
+                    const locale = voice.Locale || '未知语言';
+                    if (!voicesByLocale[locale]) {
+                        voicesByLocale[locale] = [];
+                    }
+                    voicesByLocale[locale].push(voice);
+                });
+                
+                // 清空并重建选项
+                voiceSelect.innerHTML = '<option value="">请选择语音</option>';
+                
+                // 按语言排序
+                const sortedLocales = Object.keys(voicesByLocale).sort();
+                
+                sortedLocales.forEach(locale => {
+                    const optgroup = document.createElement('optgroup');
+                    optgroup.label = LOCALE_DISPLAY_NAMES[locale] || locale;
+                    
+                    voicesByLocale[locale].forEach(voice => {
+                        const option = document.createElement('option');
+                        option.value = voice.ShortName;
+                        const gender = voice.Gender === 'Female' ? '女' : voice.Gender === 'Male' ? '男' : '未知';
+                        const name = voice.DisplayName || voice.FriendlyName || voice.Name || voice.ShortName;
+                        option.textContent = `${name} (${gender})`;
+                        optgroup.appendChild(option);
+                    });
+                    
+                    voiceSelect.appendChild(optgroup);
+                });
+                
+                voiceSelect.disabled = false;
+            } catch (error) {
+                console.error('加载语音列表失败:', error);
+                voiceSelect.innerHTML = '<option value="">加载失败，请刷新重试</option>';
+                showError('语音列表加载失败，请检查后端服务是否正常运行');
+            }
+        }
+        
+        // 显示错误信息
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.classList.add('show');
+            setTimeout(() => {
+                errorMessage.classList.remove('show');
+            }, 5000);
+        }
+        
+        // 生成语音
+        async function generateTTS() {
+            const text = textInput.value.trim();
+            const voice = voiceSelect.value;
+            
+            if (!text) {
+                showError('请输入要转换的文本');
+                return;
+            }
+            
+            if (!voice) {
+                showError('请选择语音');
+                return;
+            }
+            
+            // 设置加载状态
+            generateBtn.disabled = true;
+            generateBtn.classList.add('loading');
+            generateBtn.innerHTML = '<span class="spinner"></span>生成中...';
+            errorMessage.classList.remove('show');
+            
+            try {
+                const response = await fetch('/api/tts', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        text: text,
+                        voice: voice,
+                        rate: formatPercent(rateSlider.value),
+                        volume: formatPercent(volumeSlider.value)
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('语音生成失败');
+                }
+                
+                // 获取音频数据
+                audioBlob = await response.blob();
+                const audioUrl = URL.createObjectURL(audioBlob);
+                
+                // 设置音频播放器
+                audioPlayer.src = audioUrl;
+                
+                // 显示结果区域
+                resultSection.classList.add('show');
+                
+                // 自动播放
+                audioPlayer.play().catch(e => {
+                    console.log('自动播放被阻止:', e);
+                });
+                
+            } catch (error) {
+                console.error('生成语音失败:', error);
+                showError('语音生成失败，请检查后端服务是否正常运行');
+            } finally {
+                // 恢复按钮状态
+                generateBtn.disabled = false;
+                generateBtn.classList.remove('loading');
+                generateBtn.textContent = '生成语音';
+            }
+        }
+        
+        // 下载音频
+        function downloadAudio() {
+            if (!audioBlob) return;
+            
+            const url = URL.createObjectURL(audioBlob);
+            const a = document.createElement('a');
+            a.href = url;
+            
+            // 生成文件名
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+            a.download = `tts_${timestamp}.mp3`;
+            
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            
+            URL.revokeObjectURL(url);
+        }
+        
+        // 事件监听
+        generateBtn.addEventListener('click', generateTTS);
+        downloadBtn.addEventListener('click', downloadAudio);
+        
+        // 页面加载时获取语音列表
+        loadVoices();
+    </script>
+</body>
+</html>
